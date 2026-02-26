@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import type { Filters, FilterOptions, SkuSuggestion } from '../types'
+import type { Filters, FilterOptions, SkuSuggestion, ProductSuggestion } from '../types'
 
 interface Props {
   filters: Filters
@@ -7,14 +7,148 @@ interface Props {
   onChange: (f: Filters) => void
 }
 
+function ProductPicker({
+  selected,
+  onAdd,
+  onRemove,
+  dateFrom,
+  dateTo,
+  catL1,
+  catL2,
+  catL3,
+}: {
+  selected: ProductSuggestion[]
+  onAdd: (p: ProductSuggestion) => void
+  onRemove: (tmplId: number) => void
+  dateFrom: string
+  dateTo: string
+  catL1: string
+  catL2: string
+  catL3: string
+}) {
+  const [query, setQuery]     = useState('')
+  const [results, setResults] = useState<ProductSuggestion[]>([])
+  const [open, setOpen]       = useState(false)
+  const [loading, setLoading] = useState(false)
+  const containerRef          = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Debounced search — hits /api/po/products
+  useEffect(() => {
+    if (query.length < 1) { setResults([]); setOpen(false); return }
+    const selectedIds = selected.map((p) => p.tmpl_id)
+    const t = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const qs = new URLSearchParams({ q: query })
+        if (dateFrom) qs.set('dateFrom', dateFrom)
+        if (dateTo)   qs.set('dateTo', dateTo)
+        if (catL1)    qs.set('catL1', catL1)
+        if (catL2)    qs.set('catL2', catL2)
+        if (catL3)    qs.set('catL3', catL3)
+        const r = await fetch(`/api/po/products?${qs}`)
+        const data: ProductSuggestion[] = await r.json()
+        setResults(data.filter((p) => !selectedIds.includes(p.tmpl_id)))
+        setOpen(true)
+      } finally {
+        setLoading(false)
+      }
+    }, 280)
+    return () => clearTimeout(t)
+  }, [query, selected, dateFrom, dateTo, catL1, catL2, catL3])
+
+  const pick = (p: ProductSuggestion) => {
+    onAdd(p)
+    setQuery('')
+    setResults([])
+    setOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Selected product chips */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1">
+          {selected.map((p) => (
+            <span key={p.tmpl_id} className="badge badge-secondary badge-sm gap-1">
+              {p.template_sku
+                ? <span className="font-mono text-xs">{p.template_sku}</span>
+                : <span className="text-xs">{p.product_name}</span>
+              }
+              <button
+                className="cursor-pointer opacity-70 hover:opacity-100"
+                onClick={() => onRemove(p.tmpl_id)}
+                aria-label={`Remove ${p.product_name}`}
+              >✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Search input */}
+      <div className="relative">
+        <input
+          type="text"
+          placeholder={selected.length ? 'Add product…' : 'Type product name…'}
+          className="input input-sm input-bordered w-full pr-6"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => results.length > 0 && setOpen(true)}
+        />
+        {loading && (
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 loading loading-spinner loading-xs opacity-50" />
+        )}
+      </div>
+
+      {/* Dropdown results */}
+      {open && results.length > 0 && (
+        <ul className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto bg-base-300 border border-base-content/10 rounded-lg shadow-xl text-sm">
+          {results.map((p) => (
+            <li
+              key={p.tmpl_id}
+              className="px-3 py-2 cursor-pointer hover:bg-base-content/10 flex gap-2 items-baseline"
+              onMouseDown={(e) => { e.preventDefault(); pick(p) }}
+            >
+              {p.template_sku && (
+                <span className="font-mono text-xs text-secondary shrink-0">{p.template_sku}</span>
+              )}
+              <span className="truncate text-xs">{p.product_name}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function SkuPicker({
   selected,
   onAdd,
   onRemove,
+  dateFrom,
+  dateTo,
+  catL1,
+  catL2,
+  catL3,
+  tmplId,
 }: {
   selected: string[]
   onAdd: (sku: string) => void
   onRemove: (sku: string) => void
+  dateFrom: string
+  dateTo: string
+  catL1: string
+  catL2: string
+  catL3: string
+  tmplId?: number
 }) {
   const [query, setQuery]         = useState('')
   const [results, setResults]     = useState<SkuSuggestion[]>([])
@@ -37,7 +171,14 @@ function SkuPicker({
     const t = setTimeout(async () => {
       setLoading(true)
       try {
-        const r = await fetch(`/api/po/skus?q=${encodeURIComponent(query)}`)
+        const qs = new URLSearchParams({ q: query })
+        if (dateFrom) qs.set('dateFrom', dateFrom)
+        if (dateTo)   qs.set('dateTo', dateTo)
+        if (catL1)    qs.set('catL1', catL1)
+        if (catL2)    qs.set('catL2', catL2)
+        if (catL3)    qs.set('catL3', catL3)
+        if (tmplId)   qs.set('tmplId', String(tmplId))
+        const r = await fetch(`/api/po/skus?${qs}`)
         const data: SkuSuggestion[] = await r.json()
         setResults(data.filter((s) => !selected.includes(s.sku)))
         setOpen(true)
@@ -46,7 +187,7 @@ function SkuPicker({
       }
     }, 280)
     return () => clearTimeout(t)
-  }, [query, selected])
+  }, [query, selected, dateFrom, dateTo, catL1, catL2, catL3, tmplId])
 
   const pick = (sku: string) => {
     onAdd(sku)
@@ -77,7 +218,7 @@ function SkuPicker({
       <div className="relative">
         <input
           type="text"
-          placeholder={selected.length ? 'Add SKU…' : 'Type SKU or product…'}
+          placeholder={selected.length ? 'Add variant…' : 'Type variant SKU…'}
           className="input input-sm input-bordered w-full pr-6"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -108,6 +249,15 @@ function SkuPicker({
 }
 
 export default function FiltersBar({ filters, options, onChange }: Props) {
+  // Full ProductSuggestion objects kept locally for chip display.
+  // The canonical source of truth (productTmplIds numbers) lives in filters.
+  const [selectedProducts, setSelectedProducts] = useState<ProductSuggestion[]>([])
+
+  // When productTmplIds is cleared externally (e.g. Reset), clear display state too
+  useEffect(() => {
+    if (filters.productTmplIds.length === 0) setSelectedProducts([])
+  }, [filters.productTmplIds])
+
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch })
 
   const l2s = filters.catL1
@@ -117,13 +267,31 @@ export default function FiltersBar({ filters, options, onChange }: Props) {
     ? (options.hierarchy[filters.catL1]?.[filters.catL2] || []).filter(Boolean).sort()
     : []
 
+  // When exactly one product is selected, scope the variant picker to its variants
+  const scopedTmplId: number | undefined =
+    selectedProducts.length === 1 ? selectedProducts[0].tmpl_id : undefined
+
   const hasFilters =
     filters.dateFrom !== '2025-01' || filters.dateTo ||
     filters.catL1 || filters.catL2 || filters.catL3 ||
-    filters.search || filters.skus.length > 0
+    filters.search || filters.skus.length > 0 || filters.productTmplIds.length > 0
 
-  const reset = () =>
-    onChange({ dateFrom: '2025-01', dateTo: '', catL1: '', catL2: '', catL3: '', search: '', skus: [] })
+  const reset = () => {
+    setSelectedProducts([])
+    onChange({ dateFrom: '2025-01', dateTo: '', catL1: '', catL2: '', catL3: '', search: '', skus: [], productTmplIds: [] })
+  }
+
+  const handleProductAdd = (p: ProductSuggestion) => {
+    const next = [...selectedProducts, p]
+    setSelectedProducts(next)
+    set({ productTmplIds: next.map((x) => x.tmpl_id) })
+  }
+
+  const handleProductRemove = (tmplId: number) => {
+    const next = selectedProducts.filter((p) => p.tmpl_id !== tmplId)
+    setSelectedProducts(next)
+    set({ productTmplIds: next.map((x) => x.tmpl_id) })
+  }
 
   return (
     <div className="bg-base-200 border-b border-base-300 px-4 py-3">
@@ -202,10 +370,34 @@ export default function FiltersBar({ filters, options, onChange }: Props) {
           </div>
         )}
 
-        {/* SKU typeahead */}
+        {/* Product (template-level) typeahead */}
         <div className="form-control flex-1 min-w-[200px] max-w-xs">
           <label className="label py-0">
-            <span className="label-text text-xs opacity-60">SKU / Product</span>
+            <span className="label-text text-xs opacity-60">Product</span>
+            {selectedProducts.length > 0 && (
+              <span className="label-text-alt text-xs opacity-40">
+                {selectedProducts.length} selected
+              </span>
+            )}
+          </label>
+          <ProductPicker
+            selected={selectedProducts}
+            onAdd={handleProductAdd}
+            onRemove={handleProductRemove}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            catL1={filters.catL1}
+            catL2={filters.catL2}
+            catL3={filters.catL3}
+          />
+        </div>
+
+        {/* Variant (SKU-level) typeahead */}
+        <div className="form-control flex-1 min-w-[200px] max-w-xs">
+          <label className="label py-0">
+            <span className="label-text text-xs opacity-60">
+              {scopedTmplId ? 'Variant (scoped)' : 'Variant / SKU'}
+            </span>
             {filters.skus.length > 0 && (
               <span className="label-text-alt text-xs opacity-40">
                 {filters.skus.length} selected
@@ -216,6 +408,12 @@ export default function FiltersBar({ filters, options, onChange }: Props) {
             selected={filters.skus}
             onAdd={(sku) => set({ skus: [...filters.skus, sku] })}
             onRemove={(sku) => set({ skus: filters.skus.filter((s) => s !== sku) })}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            catL1={filters.catL1}
+            catL2={filters.catL2}
+            catL3={filters.catL3}
+            tmplId={scopedTmplId}
           />
         </div>
 

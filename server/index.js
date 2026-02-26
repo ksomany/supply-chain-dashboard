@@ -129,6 +129,19 @@ function buildWhere(query) {
     }
   }
 
+  // Template-level filter (productTmplIds comma-separated integers)
+  if (query.productTmplIds) {
+    const ids = query.productTmplIds
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
+    if (ids.length > 0) {
+      const placeholders = ids.map((_, i) => `$${params.length + 1 + i}`).join(', ')
+      params.push(...ids)
+      conds.push(`pp.product_tmpl_id IN (${placeholders})`)
+    }
+  }
+
   return { where: conds.join(' AND '), params }
 }
 
@@ -449,32 +462,78 @@ app.get('/api/po/price-by-quarter', async (req, res) => {
 })
 
 /**
- * GET /api/po/skus?q=xxx
- * Typeahead: up to 20 SKUs matching the query string.
+ * GET /api/po/products?q=xxx
+ * Typeahead: up to 20 product templates matching the query string.
+ * Respects date and category filters for context-aware results.
+ */
+app.get('/api/po/products', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim()
+    if (q.length < 1) return res.json([])
+    const { where, params } = buildWhere(req.query)
+    const likeIdx = params.length + 1
+    params.push(`%${q}%`)
+    const sql = `
+      SELECT DISTINCT
+        pt.id                           AS tmpl_id,
+        TRIM(pt.name->>'en_US')         AS product_name,
+        pt.default_code                 AS template_sku
+      ${BASE_JOINS}
+      WHERE ${where}
+        AND (
+          TRIM(pt.name->>'en_US') ILIKE $${likeIdx}
+          OR pt.default_code ILIKE $${likeIdx}
+        )
+      ORDER BY product_name
+      LIMIT 20
+    `
+    const { rows } = await pool.query(sql, params)
+    res.json(rows)
+  } catch (err) {
+    console.error('/api/po/products', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * GET /api/po/skus?q=xxx[&tmplId=n]
+ * Typeahead: up to 20 variant SKUs matching the query string.
+ * When tmplId is provided, results are scoped to that product template's variants.
  */
 app.get('/api/po/skus', async (req, res) => {
   try {
     const q = (req.query.q || '').trim()
     if (q.length < 1) return res.json([])
+    const { where, params } = buildWhere(req.query)
+
+    // Optional: scope to variants of a specific template (used by the variant picker
+    // when exactly one product template is selected in the product picker)
+    let tmplCond = ''
+    if (req.query.tmplId) {
+      const id = parseInt(req.query.tmplId, 10)
+      if (Number.isFinite(id) && id > 0) {
+        params.push(id)
+        tmplCond = `AND pp.product_tmpl_id = $${params.length}`
+      }
+    }
+
+    const likeIdx = params.length + 1
+    params.push(`%${q}%`)
     const sql = `
       SELECT DISTINCT
         COALESCE(pp.default_code, pt.default_code)  AS sku,
         TRIM(pt.name->>'en_US')                      AS product_name
-      FROM purchase_order_line pol
-      JOIN purchase_order po  ON po.id = pol.order_id
-      JOIN product_product pp ON pp.id = pol.product_id
-      JOIN product_template pt ON pt.id = pp.product_tmpl_id
-      WHERE po.state IN ('purchase','done')
-        AND po.date_order >= '2025-01-01'
-        AND po.date_order < '2099-01-01'
+      ${BASE_JOINS}
+      WHERE ${where}
+        ${tmplCond}
         AND (
-          COALESCE(pp.default_code, pt.default_code) ILIKE $1
-          OR TRIM(pt.name->>'en_US') ILIKE $1
+          COALESCE(pp.default_code, pt.default_code) ILIKE $${likeIdx}
+          OR TRIM(pt.name->>'en_US') ILIKE $${likeIdx}
         )
       ORDER BY sku
       LIMIT 20
     `
-    const { rows } = await pool.query(sql, [`%${q}%`])
+    const { rows } = await pool.query(sql, params)
     res.json(rows)
   } catch (err) {
     console.error('/api/po/skus', err.message)

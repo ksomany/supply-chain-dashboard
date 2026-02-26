@@ -7,7 +7,8 @@ export interface Filters {
   catL2: string
   catL3: string
   search: string
-  skus: string[]     // specific SKUs selected via typeahead
+  skus: string[]          // specific variant SKUs selected via typeahead
+  productTmplIds: number[] // product template IDs (template-level filter)
 }
 
 // ─── API response shapes ─────────────────────────────────────────────────────
@@ -47,6 +48,12 @@ export interface UoMRow {
 export interface SkuSuggestion {
   sku: string
   product_name: string
+}
+
+export interface ProductSuggestion {
+  tmpl_id: number
+  product_name: string
+  template_sku: string | null
 }
 
 export interface PriceTrendRow {
