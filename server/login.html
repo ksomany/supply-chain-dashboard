@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — Supply Chain Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: hsl(222 47% 8%);
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      color: hsl(215 20% 85%);
+    }
+
+    .card {
+      width: 100%;
+      max-width: 380px;
+      padding: 2rem;
+      background: hsl(222 47% 11%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .title {
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.35);
+      margin-bottom: 1.75rem;
+    }
+
+    .field { margin-bottom: 1rem; }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 0.375rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.625rem 0.75rem;
+      background: hsl(222 47% 15%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: hsl(215 20% 90%);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus { border-color: rgba(99, 102, 241, 0.6); }
+
+    button {
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: 0.65rem;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button:hover { background: #4f52d3; }
+
+    .error {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 0.75rem;
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      border-radius: 8px;
+      color: #f87171;
+      font-size: 0.8rem;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="title">Supply Chain Dashboard</div>
+    <div class="subtitle">PO Analytics — Odoo PostgreSQL</div>
+
+    <div id="errorBanner" class="error" style="display:none">
+      ⚠ Incorrect username or password.
+    </div>
+
+    <form method="POST" action="/api/auth/login">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" autofocus required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+      </div>
+      <button type="submit">Sign in</button>
+    </form>
+  </div>
+
+  <script>
+    if (new URLSearchParams(location.search).get('error') === '1') {
+      document.getElementById('errorBanner').style.display = 'flex'
+    }
+  </script>
+</body>
+</html>

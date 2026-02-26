@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smooth scroll for anchor links */
+html { scroll-behavior: smooth; }
+
+/* Thin scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.2); border-radius: 3px; }
+
+/* Table hover highlight */
+.po-table tbody tr:hover td { background: oklch(var(--b2)); }
+
+/* Recharts tooltip dark */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: oklch(var(--b2)) !important;
+  border-color: oklch(var(--bc) / 0.15) !important;
+  border-radius: 0.5rem !important;
+}
