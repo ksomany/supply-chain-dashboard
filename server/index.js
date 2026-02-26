@@ -418,6 +418,37 @@ app.get('/api/po/price-trend', async (req, res) => {
 })
 
 /**
+ * GET /api/po/price-by-quarter
+ * Weighted-average unit price grouped by year and quarter.
+ * Returns one row per (year, quarter) combination so the frontend can
+ * draw one line per year across Q1–Q4.
+ */
+app.get('/api/po/price-by-quarter', async (req, res) => {
+  try {
+    const { where, params } = buildWhere(req.query)
+    const sql = `
+      SELECT
+        EXTRACT(YEAR    FROM po.date_order)::int  AS year,
+        EXTRACT(QUARTER FROM po.date_order)::int  AS quarter,
+        ROUND(
+          (SUM(pol.product_qty * pol.price_unit) /
+           NULLIF(SUM(pol.product_qty), 0))::numeric, 4
+        ) AS price
+      ${BASE_JOINS}
+      WHERE ${where}
+        AND pol.product_qty > 0
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+    `
+    const { rows } = await pool.query(sql, params)
+    res.json(rows)
+  } catch (err) {
+    console.error('/api/po/price-by-quarter', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
  * GET /api/po/skus?q=xxx
  * Typeahead: up to 20 SKUs matching the query string.
  */

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Filters, KPIs, MonthlyRow, CategoryRow, LinesResponse, FilterOptions, UoMRow, PriceTrendRow, SortKey, SortDir } from './types'
+import type { Filters, KPIs, MonthlyRow, CategoryRow, LinesResponse, FilterOptions, UoMRow, PriceTrendRow, PriceByQuarterRow, SortKey, SortDir } from './types'
 import FiltersBar from './components/Filters'
 import KPICards from './components/KPICards'
 import MonthlyChart from './components/MonthlyChart'
 import CategoryChart from './components/CategoryChart'
 import UoMSection from './components/UoMSection'
 import PriceTrendChart from './components/PriceTrendChart'
+import PriceQuarterChart from './components/PriceQuarterChart'
 import DataTable from './components/DataTable'
 
 const DEFAULT_FILTERS: Filters = {
@@ -43,6 +44,7 @@ export default function App() {
   const [byCategory, setByCategory]   = useState<CategoryRow[]>([])
   const [byUom, setByUom]             = useState<UoMRow[]>([])
   const [priceTrend, setPriceTrend]   = useState<PriceTrendRow[]>([])
+  const [priceByQtr, setPriceByQtr]   = useState<PriceByQuarterRow[]>([])
   const [lines, setLines]             = useState<LinesResponse | null>(null)
 
   const [page, setPage]               = useState(1)
@@ -67,16 +69,17 @@ export default function App() {
     const qs      = toQS(filters)
     const tableQs = toQS(filters, { page, pageSize, sortBy, sortDir })
     try {
-      const [kpisRes, monthlyRes, catRes, uomRes, priceRes, linesRes] = await Promise.all([
+      const [kpisRes, monthlyRes, catRes, uomRes, priceRes, priceQtrRes, linesRes] = await Promise.all([
         fetch(`/api/po/kpis?${qs}`),
         fetch(`/api/po/monthly?${qs}`),
         fetch(`/api/po/by-category?${qs}`),
         fetch(`/api/po/by-uom?${qs}`),
         fetch(`/api/po/price-trend?${qs}`),
+        fetch(`/api/po/price-by-quarter?${qs}`),
         fetch(`/api/po/lines?${tableQs}`),
       ])
-      const [k, m, c, u, pt, l] = await Promise.all([
-        kpisRes.json(), monthlyRes.json(), catRes.json(), uomRes.json(), priceRes.json(), linesRes.json(),
+      const [k, m, c, u, pt, pq, l] = await Promise.all([
+        kpisRes.json(), monthlyRes.json(), catRes.json(), uomRes.json(), priceRes.json(), priceQtrRes.json(), linesRes.json(),
       ])
       if (k.error) throw new Error(k.error)
       setKpis(k)
@@ -84,6 +87,7 @@ export default function App() {
       setByCategory(c)
       setByUom(u)
       setPriceTrend(pt)
+      setPriceByQtr(pq)
       setLines(l)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
@@ -173,6 +177,18 @@ export default function App() {
         {/* ── Price trend chart ── */}
         <PriceTrendChart
           data={priceTrend}
+          loading={loading}
+          activeFilters={{
+            catL1: filters.catL1,
+            catL2: filters.catL2,
+            catL3: filters.catL3,
+            skus: filters.skus,
+          }}
+        />
+
+        {/* ── Price by quarter chart ── */}
+        <PriceQuarterChart
+          data={priceByQtr}
           loading={loading}
           activeFilters={{
             catL1: filters.catL1,

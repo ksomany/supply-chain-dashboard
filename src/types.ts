@@ -56,6 +56,12 @@ export interface PriceTrendRow {
   ma_3m: string      // 90-day rolling avg
 }
 
+export interface PriceByQuarterRow {
+  year: number     // e.g. 2024
+  quarter: number  // 1 | 2 | 3 | 4
+  price: string    // weighted avg unit price
+}
+
 export interface PoLine {
   month: string
   variant_id: number

@@ -53,6 +53,14 @@ export default function PriceTrendChart({ data, loading, activeFilters }: Props)
 
   const ticks = xTicks(data)
 
+  const allValues = data.flatMap((r) =>
+    [r.price, r.ma_30d, r.ma_3m].map(Number).filter((v) => !isNaN(v))
+  )
+  const yDomain: [number | string, number | string] =
+    allValues.length > 0
+      ? [Math.min(...allValues) * 0.8, Math.max(...allValues) * 1.2]
+      : ['auto', 'auto']
+
   return (
     <div className="card bg-base-200 shadow-sm">
       <div className="card-body p-4 pb-2">
@@ -90,11 +98,12 @@ export default function PriceTrendChart({ data, loading, activeFilters }: Props)
                 interval="preserveStartEnd"
               />
               <YAxis
-                tickFormatter={(v) => `฿${Number(v).toLocaleString()}`}
+                tickFormatter={(v) => fmtPrice(Number(v))}
                 tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.4)' }}
                 axisLine={false}
                 tickLine={false}
                 width={72}
+                domain={yDomain}
               />
 
               <Tooltip
