@@ -57,7 +57,7 @@ app.post('/api/auth/logout', (req, res) => {
 function requireAuth(req, res, next) {
   if (process.env.NODE_ENV !== 'production') return next()
   if (req.session?.authenticated) return next()
-  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorised' })
+  if (req.originalUrl.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorised' })
   res.redirect('/login')
 }
 app.use('/api/po', requireAuth)
@@ -487,7 +487,7 @@ app.get('/api/po/by-uom', async (req, res) => {
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist')
-  app.use(express.static(distPath))
+  app.use(express.static(distPath, { index: false }))
   app.get('*', requireAuth, (_req, res) => res.sendFile(path.join(distPath, 'index.html')))
 }
 
