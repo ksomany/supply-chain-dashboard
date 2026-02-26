@@ -20,6 +20,7 @@ pool.on('error', (err) => console.error('Unexpected DB error', err))
 
 app.use(cors())
 app.use(express.json())
+app.set('trust proxy', 1)
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'change-me-in-production',
@@ -44,7 +45,7 @@ app.post('/api/auth/login', (req, res) => {
     req.body.password === process.env.DASHBOARD_PASS
   ) {
     req.session.authenticated = true
-    return res.redirect('/')
+    return req.session.save(() => res.redirect('/'))
   }
   res.redirect('/login?error=1')
 })
