@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import type { Filters, FilterOptions, SkuSuggestion, ProductSuggestion } from '../types'
+import type { Filters, FilterOptions, SkuSuggestion, ProductSuggestion, VendorSuggestion } from '../types'
 
 interface Props {
   filters: Filters
@@ -121,6 +121,122 @@ function ProductPicker({
                 <span className="font-mono text-xs text-secondary shrink-0">{p.template_sku}</span>
               )}
               <span className="truncate text-xs">{p.product_name}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function VendorPicker({
+  selected,
+  onAdd,
+  onRemove,
+  dateFrom,
+  dateTo,
+  catL1,
+  catL2,
+  catL3,
+}: {
+  selected: VendorSuggestion[]
+  onAdd: (v: VendorSuggestion) => void
+  onRemove: (vendorId: number) => void
+  dateFrom: string
+  dateTo: string
+  catL1: string
+  catL2: string
+  catL3: string
+}) {
+  const [query, setQuery]     = useState('')
+  const [results, setResults] = useState<VendorSuggestion[]>([])
+  const [open, setOpen]       = useState(false)
+  const [loading, setLoading] = useState(false)
+  const containerRef          = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Debounced search — hits /api/po/vendors
+  useEffect(() => {
+    if (query.length < 1) { setResults([]); setOpen(false); return }
+    const selectedIds = selected.map((v) => v.vendor_id)
+    const t = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const qs = new URLSearchParams({ q: query })
+        if (dateFrom) qs.set('dateFrom', dateFrom)
+        if (dateTo)   qs.set('dateTo', dateTo)
+        if (catL1)    qs.set('catL1', catL1)
+        if (catL2)    qs.set('catL2', catL2)
+        if (catL3)    qs.set('catL3', catL3)
+        const r = await fetch(`/api/po/vendors?${qs}`)
+        const data: VendorSuggestion[] = await r.json()
+        setResults(data.filter((v) => !selectedIds.includes(v.vendor_id)))
+        setOpen(true)
+      } finally {
+        setLoading(false)
+      }
+    }, 280)
+    return () => clearTimeout(t)
+  }, [query, selected, dateFrom, dateTo, catL1, catL2, catL3])
+
+  const pick = (v: VendorSuggestion) => {
+    onAdd(v)
+    setQuery('')
+    setResults([])
+    setOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Selected vendor chips */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1">
+          {selected.map((v) => (
+            <span key={v.vendor_id} className="badge badge-accent badge-sm gap-1">
+              <span className="text-xs truncate max-w-[120px]">{v.vendor_name}</span>
+              <button
+                className="cursor-pointer opacity-70 hover:opacity-100"
+                onClick={() => onRemove(v.vendor_id)}
+                aria-label={`Remove ${v.vendor_name}`}
+              >✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Search input */}
+      <div className="relative">
+        <input
+          type="text"
+          placeholder={selected.length ? 'Add vendor…' : 'Type vendor name…'}
+          className="input input-sm input-bordered w-full pr-6"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => results.length > 0 && setOpen(true)}
+        />
+        {loading && (
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 loading loading-spinner loading-xs opacity-50" />
+        )}
+      </div>
+
+      {/* Dropdown results */}
+      {open && results.length > 0 && (
+        <ul className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto bg-base-300 border border-base-content/10 rounded-lg shadow-xl text-sm">
+          {results.map((v) => (
+            <li
+              key={v.vendor_id}
+              className="px-3 py-2 cursor-pointer hover:bg-base-content/10"
+              onMouseDown={(e) => { e.preventDefault(); pick(v) }}
+            >
+              <span className="text-xs">{v.vendor_name}</span>
             </li>
           ))}
         </ul>
@@ -252,11 +368,17 @@ export default function FiltersBar({ filters, options, onChange }: Props) {
   // Full ProductSuggestion objects kept locally for chip display.
   // The canonical source of truth (productTmplIds numbers) lives in filters.
   const [selectedProducts, setSelectedProducts] = useState<ProductSuggestion[]>([])
+  const [selectedVendors, setSelectedVendors]   = useState<VendorSuggestion[]>([])
 
   // When productTmplIds is cleared externally (e.g. Reset), clear display state too
   useEffect(() => {
     if (filters.productTmplIds.length === 0) setSelectedProducts([])
   }, [filters.productTmplIds])
+
+  // When vendorIds is cleared externally (e.g. Reset), clear display state too
+  useEffect(() => {
+    if (filters.vendorIds.length === 0) setSelectedVendors([])
+  }, [filters.vendorIds])
 
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch })
 
@@ -274,11 +396,13 @@ export default function FiltersBar({ filters, options, onChange }: Props) {
   const hasFilters =
     filters.dateFrom !== '2025-01' || filters.dateTo ||
     filters.catL1 || filters.catL2 || filters.catL3 ||
-    filters.search || filters.skus.length > 0 || filters.productTmplIds.length > 0
+    filters.search || filters.skus.length > 0 || filters.productTmplIds.length > 0 ||
+    filters.vendorIds.length > 0
 
   const reset = () => {
     setSelectedProducts([])
-    onChange({ dateFrom: '2025-01', dateTo: '', catL1: '', catL2: '', catL3: '', search: '', skus: [], productTmplIds: [] })
+    setSelectedVendors([])
+    onChange({ dateFrom: '2025-01', dateTo: '', catL1: '', catL2: '', catL3: '', search: '', skus: [], productTmplIds: [], vendorIds: [] })
   }
 
   const handleProductAdd = (p: ProductSuggestion) => {
@@ -291,6 +415,18 @@ export default function FiltersBar({ filters, options, onChange }: Props) {
     const next = selectedProducts.filter((p) => p.tmpl_id !== tmplId)
     setSelectedProducts(next)
     set({ productTmplIds: next.map((x) => x.tmpl_id) })
+  }
+
+  const handleVendorAdd = (v: VendorSuggestion) => {
+    const next = [...selectedVendors, v]
+    setSelectedVendors(next)
+    set({ vendorIds: next.map((x) => x.vendor_id) })
+  }
+
+  const handleVendorRemove = (vendorId: number) => {
+    const next = selectedVendors.filter((v) => v.vendor_id !== vendorId)
+    setSelectedVendors(next)
+    set({ vendorIds: next.map((x) => x.vendor_id) })
   }
 
   return (
@@ -384,6 +520,28 @@ export default function FiltersBar({ filters, options, onChange }: Props) {
             selected={selectedProducts}
             onAdd={handleProductAdd}
             onRemove={handleProductRemove}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            catL1={filters.catL1}
+            catL2={filters.catL2}
+            catL3={filters.catL3}
+          />
+        </div>
+
+        {/* Vendor typeahead */}
+        <div className="form-control flex-1 min-w-[180px] max-w-xs">
+          <label className="label py-0">
+            <span className="label-text text-xs opacity-60">Vendor</span>
+            {selectedVendors.length > 0 && (
+              <span className="label-text-alt text-xs opacity-40">
+                {selectedVendors.length} selected
+              </span>
+            )}
+          </label>
+          <VendorPicker
+            selected={selectedVendors}
+            onAdd={handleVendorAdd}
+            onRemove={handleVendorRemove}
             dateFrom={filters.dateFrom}
             dateTo={filters.dateTo}
             catL1={filters.catL1}

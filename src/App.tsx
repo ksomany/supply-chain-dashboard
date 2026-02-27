@@ -18,18 +18,20 @@ const DEFAULT_FILTERS: Filters = {
   search: '',
   skus: [],
   productTmplIds: [],
+  vendorIds: [],
 }
 
 function toQS(filters: Filters, extra: Record<string, string | number> = {}) {
   const p = new URLSearchParams()
   // Scalar filter fields
-  const { skus, productTmplIds, ...scalar } = filters
+  const { skus, productTmplIds, vendorIds, ...scalar } = filters
   Object.entries(scalar).forEach(([k, v]) => {
     if (v !== '') p.set(k, String(v))
   })
   // Array fields: send as comma-separated
   if (skus.length > 0) p.set('skus', skus.join(','))
   if (productTmplIds.length > 0) p.set('productTmplIds', productTmplIds.join(','))
+  if (vendorIds.length > 0) p.set('vendorIds', vendorIds.join(','))
   // Extra params (pagination / sort)
   Object.entries(extra).forEach(([k, v]) => {
     if (v !== '' && v !== null && v !== undefined) p.set(k, String(v))

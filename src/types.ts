@@ -9,6 +9,7 @@ export interface Filters {
   search: string
   skus: string[]          // specific variant SKUs selected via typeahead
   productTmplIds: number[] // product template IDs (template-level filter)
+  vendorIds: number[]      // vendor (res_partner) IDs selected via typeahead
 }
 
 // ─── API response shapes ─────────────────────────────────────────────────────
@@ -54,6 +55,11 @@ export interface ProductSuggestion {
   tmpl_id: number
   product_name: string
   template_sku: string | null
+}
+
+export interface VendorSuggestion {
+  vendor_id: number
+  vendor_name: string
 }
 
 export interface PriceTrendRow {

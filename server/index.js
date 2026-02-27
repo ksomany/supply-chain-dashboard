@@ -72,6 +72,7 @@ const BASE_JOINS = `
   JOIN product_template pt   ON pt.id = pp.product_tmpl_id
   LEFT JOIN product_category pc  ON pc.id = pt.categ_id
   LEFT JOIN uom_uom uom_pol      ON uom_pol.id = pol.product_uom
+  LEFT JOIN res_partner rp       ON rp.id = po.partner_id
 `
 
 /**
@@ -139,6 +140,19 @@ function buildWhere(query) {
       const placeholders = ids.map((_, i) => `$${params.length + 1 + i}`).join(', ')
       params.push(...ids)
       conds.push(`pp.product_tmpl_id IN (${placeholders})`)
+    }
+  }
+
+  // Vendor filter (vendorIds comma-separated integers)
+  if (query.vendorIds) {
+    const ids = query.vendorIds
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
+    if (ids.length > 0) {
+      const placeholders = ids.map((_, i) => `$${params.length + 1 + i}`).join(', ')
+      params.push(...ids)
+      conds.push(`po.partner_id IN (${placeholders})`)
     }
   }
 
@@ -537,6 +551,34 @@ app.get('/api/po/skus', async (req, res) => {
     res.json(rows)
   } catch (err) {
     console.error('/api/po/skus', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * GET /api/po/vendors?q=xxx
+ * Typeahead: up to 20 vendors whose name matches the query string.
+ * Respects all active filters so results are scoped to the current filtered set.
+ */
+app.get('/api/po/vendors', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim()
+    if (q.length < 1) return res.json([])
+    const { where, params } = buildWhere(req.query)
+    const likeIdx = params.length + 1
+    params.push(`%${q}%`)
+    const sql = `
+      SELECT DISTINCT rp.id AS vendor_id, rp.name->>'en_US' AS vendor_name
+      ${BASE_JOINS}
+      WHERE ${where}
+        AND (rp.name->>'en_US' ILIKE $${likeIdx} OR rp.name->>'th_TH' ILIKE $${likeIdx})
+      ORDER BY vendor_name
+      LIMIT 20
+    `
+    const { rows } = await pool.query(sql, params)
+    res.json(rows)
+  } catch (err) {
+    console.error('/api/po/vendors', err.message)
     res.status(500).json({ error: err.message })
   }
 })
